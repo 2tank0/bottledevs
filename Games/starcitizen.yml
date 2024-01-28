@@ -4,8 +4,9 @@ Grade: Bronze
 Arch: win64
 
 Dependencies:
-- allfonts
+- arial32
 - vcredist2019
+- mono
 
 Parameters:
   dxvk: true
@@ -22,6 +23,51 @@ Executable:
   
 Steps:
 - action: install_exe
-  file_name: RSI-Setup-1.5.5.exe
-  url: https://install.robertsspaceindustries.com/star-citizen/RSI-Setup-1.5.5.exe
-  file_checksum: 2ac76cd94eee754fdaa56f233d7bfcac
+  file_name: RSI-Setup-1.6.5.exe
+  arguments: /S
+  url: https://install.robertsspaceindustries.com/star-citizen/RSI-Setup-1.6.5.exe
+  file_checksum: acdc48032606bcf4e0913e15711b5fc2
+- action: run_script
+  script: |
+    export SC_DEFAULT_GAME_PATH="!bottle_drive/Program Files/Roberts Space Industries/StarCitizen"
+    export SC_FIX_SCRIPT="!bottle_drive/starcitizen_fix.sh"
+    mkdir -p "${SC_DEFAULT_GAME_PATH}/LIVE"
+    mkdir -p "${SC_DEFAULT_GAME_PATH}/PTU"
+    cat << EOF > "${SC_FIX_SCRIPT}"
+    #!/bin/bash
+    # Bottles StarCitizen-installer fixer script"
+    # block EAC module access via DNS inside bottle, by default for LIVE instance. Run starcitizen_eac.sh PTU for the PTU instance.
+    bash !bottle_drive/starcitizen_eac.sh
+    # add sysctl settings
+    pkexec bash !bottle_drive/starcitizen_sysctl.sh
+    EOF
+- action: run_script
+  script: |
+    export SC_DEFAULT_GAME_PATH="!bottle_drive/Program Files/Roberts Space Industries/StarCitizen"
+    export SC_EAC_SCRIPT="!bottle_drive/starcitizen_eac.sh"
+    cat << EOF > "${SC_EAC_SCRIPT}"
+    #!/bin/bash
+    echo "127.0.0.1 modules-cdn.eac-prod.on.epicgames.com #block EAC access" >> !bottle_drive/windows/system32/drivers/etc/hosts
+    cp "${SC_DEFAULT_GAME_PATH}/LIVE/EasyAntiCheat/Settings.json" "${SC_DEFAULT_GAME_PATH}/LIVE/EasyAntiCheat/Settings.json.backup"
+    if [[ "$1" == "PTU" ]]
+    then
+    sed -i "s#\"productid\":\(\s*\)\"\(.*\)\"#\"productid\":\1\"\2NONONO\"#g" "${SC_DEFAULT_GAME_PATH}/PTU/EasyAntiCheat/Settings.json"
+    sed -i "s#\"sandboxid\":\(\s*\)\"\(.*\)\"#\"sandboxid\":\1\"\2NONONO\"#g" "${SC_DEFAULT_GAME_PATH}/PTU/EasyAntiCheat/Settings.json"
+    sed -i "s#\"clientid\":\(\s*\)\"\(.*\)\"#\"clientid\":\1\"\2NONONO\"#g" "${SC_DEFAULT_GAME_PATH}/PTU/EasyAntiCheat/Settings.json"
+    sed -i "s#\"deploymentid\":\(\s*\)\"\(.*\)\"#\"deploymentid\":\1\"\2NONONO\"#g" "${SC_DEFAULT_GAME_PATH}/PTU/EasyAntiCheat/Settings.json"
+    else
+    sed -i "s#\"productid\":\(\s*\)\"\(.*\)\"#\"productid\":\1\"\2NONONO\"#g" "${SC_DEFAULT_GAME_PATH}/LIVE/EasyAntiCheat/Settings.json"
+    sed -i "s#\"sandboxid\":\(\s*\)\"\(.*\)\"#\"sandboxid\":\1\"\2NONONO\"#g" "${SC_DEFAULT_GAME_PATH}/LIVE/EasyAntiCheat/Settings.json"
+    sed -i "s#\"clientid\":\(\s*\)\"\(.*\)\"#\"clientid\":\1\"\2NONONO\"#g" "${SC_DEFAULT_GAME_PATH}/LIVE/EasyAntiCheat/Settings.json"
+    sed -i "s#\"deploymentid\":\(\s*\)\"\(.*\)\"#\"deploymentid\":\1\"\2NONONO\"#g" "${SC_DEFAULT_GAME_PATH}/LIVE/EasyAntiCheat/Settings.json"
+    fi
+    EOF
+- action: run_script
+  script: |
+    export SC_SYSCTL_SCRIPT="!bottle_drive/starcitizen_sysctl.sh"
+    cat << EOF >> "${SC_SYSCTL_SCRIPT}"
+    #!/bin/bash
+    echo "#Bottles StarCitizen installer" > /etc/sysctl.d/20-starcitizen.conf
+    echo "vm.max_map_count=16777216" >> /etc/sysctl.d/20-starcitizen.conf
+    /usr/sbin/sysctl -p /etc/sysctl.d/20-starcitizen.conf
+    EOF
